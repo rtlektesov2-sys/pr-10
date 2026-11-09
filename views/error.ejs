@@ -1,0 +1,9 @@
+<%- include('partials/head', { title: title }) %>
+<%- include('partials/header', { activePage: 'error' }) %>
+<main class="not-found__main">
+  <p class="eyebrow eyebrow--dark"><span class="eyebrow__line"></span> ОШИБКА СЕРВЕРА</p>
+  <h1>Не удалось выполнить запрос.</h1>
+  <p><%= message %></p>
+  <a class="button button--green" href="/">Вернуться в каталог <span aria-hidden="true">↗</span></a>
+</main>
+<%- include('partials/footer', { year: year }) %>

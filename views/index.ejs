@@ -67,30 +67,39 @@
       <h2>Поделитесь тем,<br>что знаете.</h2>
       <p>Добавьте программу в каталог и помогите другим освоить новое направление.</p>
     </div>
-    <details class="course-editor">
-      <summary>Добавить курс <span aria-hidden="true">+</span></summary>
-      <form id="course-form" class="course-form">
-        <label>Название курса<input name="title" required maxlength="100" placeholder="Например, Основы Python"></label>
-        <label>Преподаватель<input name="instructor" required maxlength="80" placeholder="Имя и фамилия"></label>
-        <label>Направление
-          <select name="category" required>
-            <% categories.forEach(function (category) { %><option value="<%= category %>"><%= category %></option><% }); %>
-          </select>
-        </label>
-        <label>Уровень
-          <select name="level" required>
-            <option value="Начальный">Начальный</option>
-            <option value="Средний">Средний</option>
-            <option value="Продвинутый">Продвинутый</option>
-          </select>
-        </label>
-        <label>Длительность, часов<input name="durationHours" type="number" min="1" max="500" required placeholder="12"></label>
-        <label>Стоимость, ₸<input name="price" type="number" min="0" step="1" required value="0"></label>
-        <label class="course-form__wide">О курсе<textarea name="description" required maxlength="350" rows="3" placeholder="Чему научится студент"></textarea></label>
-        <button class="button button--green" type="submit">Опубликовать курс <span aria-hidden="true">↗</span></button>
-        <p id="course-form-message" class="form-message" role="status" hidden></p>
-      </form>
-    </details>
+    <% if (isAdmin) { %>
+      <div>
+        <details class="course-editor">
+          <summary>Добавить курс <span aria-hidden="true">+</span></summary>
+          <form id="course-form" class="course-form">
+            <label>Название курса<input name="title" required maxlength="100" placeholder="Например, Основы Python"></label>
+            <label>Преподаватель<input name="instructor" required maxlength="80" placeholder="Имя и фамилия"></label>
+            <label>Направление
+              <select name="category" required>
+                <% categories.forEach(function (category) { %><option value="<%= category %>"><%= category %></option><% }); %>
+              </select>
+            </label>
+            <label>Уровень
+              <select name="level" required>
+                <option value="Начальный">Начальный</option>
+                <option value="Средний">Средний</option>
+                <option value="Продвинутый">Продвинутый</option>
+              </select>
+            </label>
+            <label>Длительность, часов<input name="durationHours" type="number" min="1" max="500" required placeholder="12"></label>
+            <label>Стоимость, ₸<input name="price" type="number" min="0" step="1" required value="0"></label>
+            <label class="course-form__wide">О курсе<textarea name="description" required maxlength="350" rows="3" placeholder="Чему научится студент"></textarea></label>
+            <button class="button button--green" type="submit">Опубликовать курс <span aria-hidden="true">↗</span></button>
+            <p id="course-form-message" class="form-message" role="status" hidden></p>
+          </form>
+        </details>
+        <form method="POST" action="/logout" style="margin-top: 16px;">
+          <button class="button button--outline" type="submit">Выйти</button>
+        </form>
+      </div>
+    <% } else { %>
+      <a class="button button--outline" href="/login">Вход для администратора <span aria-hidden="true">↗</span></a>
+    <% } %>
   </section>
 </main>
 <%- include('partials/footer', { year: year }) %>

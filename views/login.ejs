@@ -1,0 +1,23 @@
+<%- include('partials/head', { title: title, description: 'Вход администратора академии FORMA.' }) %>
+<%- include('partials/header', { activePage: 'login' }) %>
+<main class="feedback-page section-wrap">
+  <p class="eyebrow eyebrow--dark"><span class="eyebrow__line"></span> ДОСТУП К УПРАВЛЕНИЮ</p>
+  <div>
+    <h1>Вход для администратора</h1>
+    <p class="feedback-page__intro">Войдите, чтобы добавлять курсы в каталог.</p>
+  </div>
+  <form class="feedback-form" action="/login" method="POST">
+    <% if (error) { %>
+      <p class="feedback-errors" role="alert"><%= error %></p>
+    <% } %>
+    <label for="login">Логин
+      <input id="login" name="login" type="text" required autocomplete="username">
+    </label>
+    <label for="password">Пароль
+      <input id="password" name="password" type="password" required autocomplete="current-password">
+    </label>
+    <button class="button button--green" type="submit">Войти <span aria-hidden="true">↗</span></button>
+    <a class="text-link" href="/">← На главную</a>
+  </form>
+</main>
+<%- include('partials/footer', { year: year }) %>

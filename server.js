@@ -2,6 +2,19 @@ const express = require("express");
 const fs = require("fs");
 const path = require("path");
 const db = require("./db");
+const bcrypt = require("bcrypt");
+const session = require("express-session");
+
+const ADMIN_LOGIN = process.env.ADMIN_LOGIN;
+const ADMIN_HASH = process.env.ADMIN_HASH;
+const SESSION_SECRET = process.env.SESSION_SECRET;
+
+if (!ADMIN_LOGIN || !/^\$2[aby]\$\d{2}\$[./A-Za-z0-9]{53}$/.test(ADMIN_HASH || "")) {
+    throw new Error("Задайте ADMIN_LOGIN и корректный bcrypt-хеш ADMIN_HASH в .env");
+}
+if (!SESSION_SECRET || SESSION_SECRET.length < 32) {
+    throw new Error("Задайте SESSION_SECRET длиной не менее 32 символов в .env");
+}
 
 const app = express();
 app.set("view engine", "ejs");
@@ -13,6 +26,23 @@ const FEEDBACK_FILE = path.join(__dirname, "feedback.json");
 
 app.use(express.json());
 app.use(express.urlencoded({ extended: true }));
+
+app.use(session({
+    secret: SESSION_SECRET,
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+        httpOnly: true,
+        sameSite: "lax",
+        secure: process.env.NODE_ENV === "production",
+        maxAge: 1000 * 60 * 60 * 2
+    }
+}));
+
+app.use(function (req, res, next) {
+    res.locals.isAdmin = Boolean(req.session.isAdmin);
+    next();
+});
 
 app.use(function (req, res, next) {
     console.log(`${req.method} ${req.url}`);
@@ -73,6 +103,79 @@ function createCourse(course, id) {
 }
 
 const courseCollectionRoutes = ["/api/items", "/api/courses"];
+
+function requireAuth(req, res, next) {
+    if (req.session.isAdmin) {
+        return next();
+    }
+    if (req.path.startsWith("/api/")) {
+        return res.status(401).json({ error: "Требуется вход администратора" });
+    }
+    res.redirect("/login");
+}
+
+app.get("/login", function (req, res) {
+    if (req.session.isAdmin) {
+        return res.redirect("/add");
+    }
+    res.render("login", {
+        title: "Вход",
+        error: null,
+        year: new Date().getFullYear()
+    });
+});
+
+app.post("/login", async function (req, res, next) {
+    const login = typeof req.body.login === "string" ? req.body.login.trim() : "";
+    const password = typeof req.body.password === "string" ? req.body.password : "";
+    if (!login || !password) {
+        return res.status(400).render("login", {
+            title: "Вход",
+            error: "Заполните оба поля",
+            year: new Date().getFullYear()
+        });
+    }
+
+    try {
+        const passwordOk = await bcrypt.compare(password, ADMIN_HASH);
+        if (login !== ADMIN_LOGIN || !passwordOk) {
+            return res.status(401).render("login", {
+                title: "Вход",
+                error: "Неверный логин либо пароль",
+                year: new Date().getFullYear()
+            });
+        }
+
+        req.session.regenerate(function (error) {
+            if (error) {
+                return next(error);
+            }
+            req.session.isAdmin = true;
+            req.session.save(function (saveError) {
+                if (saveError) {
+                    return next(saveError);
+                }
+                res.redirect("/add");
+            });
+        });
+    } catch (error) {
+        next(error);
+    }
+});
+
+app.post("/logout", function (req, res, next) {
+    req.session.destroy(function (error) {
+        if (error) {
+            return next(error);
+        }
+        res.clearCookie("connect.sid");
+        res.redirect("/");
+    });
+});
+
+app.get("/add", requireAuth, function (req, res) {
+    res.redirect("/#for-teachers");
+});
 
 app.get("/", async function (req, res) {
     try {
@@ -301,7 +404,7 @@ app.get(["/api/items/:id", "/api/courses/:id"], async function (req, res) {
     }
 });
 
-app.post(courseCollectionRoutes, async function (req, res) {
+app.post(courseCollectionRoutes, requireAuth, async function (req, res) {
     const courseData = req.body;
     const problems = validateCourse(courseData);
     if (problems.length > 0) {
@@ -372,6 +475,21 @@ app.use(function (req, res) {
         year: new Date().getFullYear()
     });
 
+});
+
+app.use(function (error, req, res, next) {
+    console.error(error);
+    if (res.headersSent) {
+        return next(error);
+    }
+    if (req.path.startsWith("/api/")) {
+        return res.status(500).json({ error: "Внутренняя ошибка сервера" });
+    }
+    res.status(500).render("error", {
+        title: "Ошибка сервера",
+        message: "Не удалось выполнить запрос. Попробуйте позже.",
+        year: new Date().getFullYear()
+    });
 });
 
 db.connect()
