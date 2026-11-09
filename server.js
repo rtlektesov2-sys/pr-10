@@ -374,18 +374,39 @@ app.post("/film/:id/enroll", async function (req, res) {
 
 app.get(courseCollectionRoutes, async function (req, res) {
     try {
-        let courses = await readCourses();
-        const category = req.query.category || req.query.genre;
+        const query = {};
+        const category = typeof req.query.category === "string" ? req.query.category :
+            (typeof req.query.genre === "string" ? req.query.genre : "");
         if (category) {
-            courses = courses.filter(course => course.category === category);
+            query.category = category;
         }
-        if (req.query.q) {
-            const query = req.query.q.toLowerCase();
-            courses = courses.filter(course =>
-                `${course.title} ${course.description} ${course.instructor}`.toLowerCase().includes(query)
-            );
+        if (typeof req.query.level === "string" && req.query.level) {
+            query.level = req.query.level;
         }
-        res.json(courses);
+        const search = typeof req.query.q === "string" ? req.query.q.trim() : "";
+        if (search) {
+            const escapedSearch = search.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+            query.$or = [
+                { title: { $regex: escapedSearch, $options: "i" } },
+                { description: { $regex: escapedSearch, $options: "i" } },
+                { instructor: { $regex: escapedSearch, $options: "i" } }
+            ];
+        }
+
+        const requestedLimit = Number(req.query.limit);
+        const limit = Number.isSafeInteger(requestedLimit) && requestedLimit > 0
+            ? Math.min(requestedLimit, 50)
+            : 10;
+        const requestedPage = Number(req.query.page);
+        const page = Number.isSafeInteger(requestedPage) && requestedPage > 0 ? requestedPage : 1;
+        const courses = db.getCollection("courses");
+        const total = await courses.countDocuments(query);
+        const items = await courses.find(query, { projection: { _id: 0 } })
+            .sort({ id: 1 })
+            .skip((page - 1) * limit)
+            .limit(limit)
+            .toArray();
+        res.json({ total: total, page: page, limit: limit, items: items });
     } catch (err) {
         res.status(500).json({ error: "Не удалось прочитать данные" });
     }
@@ -419,6 +440,47 @@ app.post(courseCollectionRoutes, requireAuth, async function (req, res) {
         res.status(201).json(newCourse);
     } catch (err) {
         res.status(500).json({ error: "Не удалось сохранить курс" });
+    }
+});
+
+app.put(["/api/items/:id", "/api/courses/:id"], requireAuth, async function (req, res) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: "Неверный формат идентификатора" });
+    }
+
+    const problems = validateCourse(req.body);
+    if (problems.length > 0) {
+        return res.status(400).json({ error: "Данные заполнены неверно", problems: problems });
+    }
+
+    try {
+        const collection = db.getCollection("courses");
+        const update = createCourse(req.body, id);
+        const result = await collection.updateOne({ id: id }, { $set: update });
+        if (result.matchedCount === 0) {
+            return res.status(404).json({ error: "Курс не найден" });
+        }
+        res.json(update);
+    } catch (err) {
+        res.status(500).json({ error: "Не удалось обновить курс" });
+    }
+});
+
+app.delete(["/api/items/:id", "/api/courses/:id"], requireAuth, async function (req, res) {
+    const id = Number(req.params.id);
+    if (!Number.isInteger(id) || id <= 0) {
+        return res.status(400).json({ error: "Неверный формат идентификатора" });
+    }
+
+    try {
+        const result = await db.getCollection("courses").deleteOne({ id: id });
+        if (result.deletedCount === 0) {
+            return res.status(404).json({ error: "Курс не найден" });
+        }
+        res.status(204).end();
+    } catch (err) {
+        res.status(500).json({ error: "Не удалось удалить курс" });
     }
 });
 
